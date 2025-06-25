@@ -2,6 +2,8 @@
 using OpenQA.Selenium.Firefox;
 using OpenQA.Selenium.Support.UI; // Essencial para o WebDriverWait
 using Xunit;
+using System;
+using SeleniumExtras.WaitHelpers;
 
 namespace Reservation.Tests.Unit
 {
@@ -11,7 +13,7 @@ namespace Reservation.Tests.Unit
         private readonly WebDriverWait wait;
 
         // ATENÇÃO: Atualizei a URL para a que você informou!
-        private readonly string baseUrl = "https://localhost:7105";
+        private readonly string baseUrl = "https://localhost:5139"; //mudar a porta
 
         public LoginTests()
         {
@@ -63,6 +65,55 @@ namespace Reservation.Tests.Unit
             // Verificamos se o elemento está visível e contém o texto esperado.
             Assert.True(errorMessageDiv.Displayed);
             Assert.Contains("Sorry!", errorMessageDiv.Text);
+        }
+
+        [Fact]
+        public void Login_RedirectsToProtectedPageAfterSuccess()
+        {
+            // --- ARRANGE ---
+            // 1. Defina a URL de uma página PROTEGIDA que exige login.
+            // ATENÇÃO: Mude esta URL para uma página REALMENTE PROTEGIDA no seu aplicativo!
+            // Exemplo: /UserManagment, /Dashboard, /Reservation/Create
+            string protectedPageRelativeUrl = "/UserManagment"; // Apenas o caminho relativo
+            string fullProtectedPageUrl = $"{baseUrl}{protectedPageRelativeUrl}";
+
+            // 2. Navegue diretamente para a página protegida sem estar logado.
+            driver.Navigate().GoToUrl(fullProtectedPageUrl);
+
+            // 3. Assert (inicial): Verifique se o navegador foi redirecionado para a página de login.
+            // O Identity padrão redireciona para algo como /Account/Login?ReturnUrl=%2FUserManagment
+            wait.Until(ExpectedConditions.UrlContains("/Account/Login")); // Espera a URL de login
+            Assert.Contains("/Account/Login", driver.Url);
+            Assert.Contains($"ReturnUrl={Uri.EscapeDataString(protectedPageRelativeUrl)}", driver.Url);
+
+            // --- ACT ---
+            // 4. Preencha as credenciais VÁLIDAS na página de login.
+            // ATENÇÃO: SUBSTITUA ESTES DADOS PELAS CREDENCIAIS DE UM USUÁRIO VÁLIDO NO SEU BD!
+            string validUserEmail = "usuario.valido@exemplo.com"; // Use um email válido
+            string validUserPassword = "SenhaValida123!"; // Use a senha correta
+
+            wait.Until(ExpectedConditions.ElementIsVisible(By.Id("EmailAddress"))).SendKeys(validUserEmail);
+            driver.FindElement(By.Id("Password")).SendKeys(validUserPassword);
+            driver.FindElement(By.CssSelector("input.btn-primary[type='submit']")).Click();
+
+            // --- ASSERT ---
+            // 5. Verifique se, após o login, o usuário é redirecionado para a página PROTEGIDA original.
+            // O ideal é esperar até que a URL seja exatamente a da página protegida.
+            wait.Until(ExpectedConditions.UrlToBe(fullProtectedPageUrl));
+            Assert.Equal(fullProtectedPageUrl, driver.Url);
+
+            // Opcional: Verifique se algum elemento específico da página protegida está visível para confirmar o carregamento
+            // Exemplo: Um título ou um nome de usuário que só aparece na página protegida.
+            try
+            {
+                // Tenta encontrar um h4 com o texto "Gerenciamento de Usuários" na página UserManagment
+                var protectedPageSpecificElement = wait.Until(ExpectedConditions.ElementIsVisible(By.XPath("//h4[contains(text(),'Gerenciamento de Usuários')]")));
+                Assert.True(protectedPageSpecificElement.Displayed, "Elemento específico da página protegida não encontrado ou incorreto.");
+            }
+            catch (WebDriverTimeoutException)
+            {
+                Assert.Fail("Não foi possível encontrar um elemento específico da página protegida após o redirecionamento.");
+            }
         }
 
         //[Fact]
